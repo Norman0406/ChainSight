@@ -18,6 +18,7 @@ export function shortenBitcoinAddress(address: string): string {
 
 export function dynamicSizeFromValue(valueInSatoshi: number, minSize: number, maxSize: number, maxSizeAtBtc: number): number {
     const scalingFactor = maxSize - minSize;
-    const result = minSize + (satsToBtc(valueInSatoshi) / maxSizeAtBtc) * scalingFactor;
+    const valueInBtc = satsToBtc(valueInSatoshi)
+    const result = minSize + (valueInBtc / maxSizeAtBtc) * scalingFactor;
     return Math.min(result, maxSize);
 }

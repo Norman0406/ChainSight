@@ -29,6 +29,14 @@ export default function TransactionPage() {
         setNodeIds(nodeIds)
     }
 
+    function updateNode(nodeToUpdate: GraphNode, newProperties: Partial<GraphNode>) {
+        setNodes(nodes =>
+            nodes.map(node =>
+                node.id === nodeToUpdate.id ? { ...node, ...newProperties } : node
+            )
+        );
+    };
+
     async function load(transaction: string, nodeIds: Set<string>) {
         if (transactions.has(transaction)) {
             return
@@ -38,6 +46,7 @@ export default function TransactionPage() {
             id: transaction,
             label: String(),
             fill: "red",
+            size: 10,
             data: new NodeInfo("", "", 0),
         };
         setNodes(nodes => [...nodes, startingNode]);
@@ -75,6 +84,8 @@ export default function TransactionPage() {
             const newAddressNode: GraphNode = {
                 id: nodeId,
                 label: shortenBitcoinAddress(txOut.scriptpubkey_address),
+                fill: "gray",
+                size: 10,
                 data: new NodeInfo(
                     txOut.scriptpubkey_address,
                     txDetails.txid,
@@ -88,13 +99,14 @@ export default function TransactionPage() {
                 source: sourceNode,
                 target: nodeId,
                 size: dynamicSizeFromValue(txOut.value, 1, 10, 10),
-                label: String(satsToBtc(txOut.value))
+                label: String(satsToBtc(txOut.value)) + " BTC"
             }
             setEdges(edges => [...edges, newEdge]);
         }
     }
 
-    async function loadAddress(nodeInfo: NodeInfo) {
+    async function loadAddress(node: GraphNode) {
+        const nodeInfo = node.data
         if (addresses.has(nodeInfo.address)) {
             console.log("Skipping address, we've already processed it", nodeInfo.address);
             return;
@@ -104,6 +116,16 @@ export default function TransactionPage() {
         setAddresses(addresses);
 
         console.log("Loading address", nodeInfo.address)
+        const addressDetails = await getAddress(nodeInfo.address)
+
+        const balance = addressDetails.chain_stats.funded_txo_sum - addressDetails.chain_stats.spent_txo_sum
+
+        updateNode(node, {
+            size: dynamicSizeFromValue(balance, 10, 50, 100),
+            subLabel: String(satsToBtc(balance)) + " BTC",
+            fill: "blue"
+        })
+
         const txs = await getAddressTxsChain(nodeInfo.address)
 
         for (var tx of txs) {
@@ -128,7 +150,7 @@ export default function TransactionPage() {
             return
         }
 
-        loadAddress(node.data);
+        loadAddress(node);
 
         if (onNodeClick) {
             onNodeClick(node);
