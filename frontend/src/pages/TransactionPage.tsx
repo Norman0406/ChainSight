@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { getTransaction, getAddress, getAddressTxs, getAddressTxsChain } from '../services/MempoolService'
 import { darkTheme, GraphCanvas, GraphCanvasRef, GraphNode, GraphEdge, useSelection } from 'reagraph';
-import { dynamicSizeFromValue, shortenBitcoinAddress, satsToBtc } from '../utils/Bitcoin';
+import { nodeSizeFromSats, edgeSizeFromSats, shortenBitcoinAddress, satsToBtc, getAddressFromVout, edgeSizeFromBlockHeightDelta } from '../utils/Bitcoin';
 
 class NodeInfo {
     constructor(
@@ -51,10 +51,10 @@ export default function TransactionPage() {
         };
         setNodes(nodes => [...nodes, startingNode]);
 
-        await loadTransaction(transaction, transaction)
+        await loadTransaction(transaction, startingNode)
     }
 
-    async function loadTransaction(transaction: string, sourceNode: string) {
+    async function loadTransaction(transaction: string, sourceNode: GraphNode) {
         console.log("Loading transaction", transaction, transactions)
 
         if (transactions.has(transaction)) {
@@ -68,14 +68,18 @@ export default function TransactionPage() {
         const txDetails = await getTransaction(transaction);
 
         for (var txOut of txDetails.vout) {
-            const nodeId = txOut.scriptpubkey_address
+            const address = getAddressFromVout(txOut)
+
+            const nodeId = address
 
             if (nodeIds.has(nodeId)) {
                 continue;
             }
 
-            if (!txOut.scriptpubkey_address) {
-                console.log("Skipping transaction because address is not set");
+            console.log(txOut)
+
+            if (!address) {
+                console.log("Skipping transaction because address is not set", txOut);
                 continue
             }
 
@@ -83,59 +87,81 @@ export default function TransactionPage() {
 
             const newAddressNode: GraphNode = {
                 id: nodeId,
-                label: shortenBitcoinAddress(txOut.scriptpubkey_address),
+                label: shortenBitcoinAddress(address),
                 fill: "gray",
-                size: 10,
+                size: nodeSizeFromSats(txOut.value),
                 data: new NodeInfo(
-                    txOut.scriptpubkey_address,
+                    address,
                     txDetails.txid,
                     txDetails.status.block_height,
                 ),
             };
             addNode(newAddressNode)
 
+            const blockHeightDelta = txDetails.status.block_height - sourceNode.data.txBlockHeight
+
+            // by now we have two modes to analyze this:
+            // - by urgency, showing block height delta as edge size
+            // - by amount, showing transferred funds as edge size
+            // we could imagine a way to switch between them at runtime
+
+            // we can also have two operating modes:
+            // - inspecting outflowing transactions from addresses, only showing transactions that happen after our starting transaction
+            // - inspecting inflowing transactions from addresses, only showing earlier transactions before our starting transaction
+
             const newEdge: GraphEdge = {
-                id: sourceNode + nodeId,
-                source: sourceNode,
+                id: sourceNode.id + nodeId,
+                source: sourceNode.id,
                 target: nodeId,
-                size: dynamicSizeFromValue(txOut.value, 1, 10, 10),
+                size: edgeSizeFromSats(txOut.value),
+                // size: sourceNode.data.txBlockHeight > 0 ? edgeSizeFromBlockHeightDelta(blockHeightDelta) : 1,
                 label: String(satsToBtc(txOut.value)) + " BTC"
+                // label: String(blockHeightDelta)
             }
             setEdges(edges => [...edges, newEdge]);
         }
     }
 
     async function loadAddress(node: GraphNode) {
-        const nodeInfo = node.data
-        if (addresses.has(nodeInfo.address)) {
-            console.log("Skipping address, we've already processed it", nodeInfo.address);
-            return;
-        }
+        try {
+            const nodeInfo = node.data
 
-        addresses.add(nodeInfo.address);
-        setAddresses(addresses);
-
-        console.log("Loading address", nodeInfo.address)
-        const addressDetails = await getAddress(nodeInfo.address)
-
-        const balance = addressDetails.chain_stats.funded_txo_sum - addressDetails.chain_stats.spent_txo_sum
-
-        updateNode(node, {
-            size: dynamicSizeFromValue(balance, 10, 50, 100),
-            subLabel: String(satsToBtc(balance)) + " BTC",
-            fill: "blue"
-        })
-
-        const txs = await getAddressTxsChain(nodeInfo.address)
-
-        for (var tx of txs) {
-            // don't load transactions from a time before the block height of the current node
-            if (tx.status.block_height < nodeInfo.txBlockHeight) {
-                console.log("Skipping transaction because it's too old", tx)
-                continue;
+            if (addresses.has(nodeInfo.address)) {
+                console.log("Skipping address, we've already processed it", nodeInfo.address);
+                return;
             }
 
-            await loadTransaction(tx.txid, nodeInfo.address);
+            console.log("Loading address", nodeInfo.address)
+            const addressDetails = await getAddress(nodeInfo.address)
+
+            const balance = addressDetails.chain_stats.funded_txo_sum - addressDetails.chain_stats.spent_txo_sum
+
+            updateNode(node, {
+                size: nodeSizeFromSats(balance),
+                subLabel: String(satsToBtc(balance)) + " BTC"
+            })
+
+            const txs = await getAddressTxsChain(nodeInfo.address)
+
+            for (var tx of txs) {
+                // don't load transactions from a time before the block height of the current node
+                if (tx.status.block_height < nodeInfo.txBlockHeight) {
+                    console.log("Skipping transaction because it's too old", tx)
+                    continue;
+                }
+
+                await loadTransaction(tx.txid, node);
+            }
+
+            addresses.add(nodeInfo.address);
+            setAddresses(addresses);
+
+            updateNode(node, {
+                fill: "blue"
+            })
+        }
+        catch (error) {
+            console.error(error)
         }
     }
 
@@ -151,10 +177,6 @@ export default function TransactionPage() {
         }
 
         loadAddress(node);
-
-        if (onNodeClick) {
-            onNodeClick(node);
-        }
     }
 
     const {
