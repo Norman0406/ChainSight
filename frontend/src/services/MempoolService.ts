@@ -4,7 +4,7 @@ function api() {
     return mempoolJS();
 }
 
-export const getTransaction = async (txid: string) => {
+async function getTransaction(txid: string) {
     try {
         const { bitcoin: { transactions } } = api();
 
@@ -15,7 +15,7 @@ export const getTransaction = async (txid: string) => {
     }
 };
 
-export const getAddress = async (address: string) => {
+async function getAddress(address: string){
     try {
         const { bitcoin: { addresses } } = api();
 
@@ -26,7 +26,7 @@ export const getAddress = async (address: string) => {
     }
 };
 
-export const getAddressTxs = async (address: string, after_txid: string) => {
+async function getAddressTxs(address: string, after_txid: string) {
     try {
         const { bitcoin: { addresses } } = api();
 
@@ -37,7 +37,7 @@ export const getAddressTxs = async (address: string, after_txid: string) => {
     }
 };
 
-export const getAddressTxsChain = async (address: string) => {
+async function getAddressTxsChain(address: string) {
     try {
         const { bitcoin: { addresses } } = api();
 
@@ -47,3 +47,12 @@ export const getAddressTxsChain = async (address: string) => {
         throw error;
     }
 };
+
+const MempoolService = {
+    getTransaction,
+    getAddress,
+    getAddressTxs,
+    getAddressTxsChain
+  };
+  
+export default MempoolService;

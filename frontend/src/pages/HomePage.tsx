@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from "react-router";
 
 import TransactionInput from '../components/TransactionInput';
-import { getTransaction } from '../services/MempoolService';
+import MempoolService from '../services/MempoolService';
 
 export default function HomePage() {
     const [transactionValue, setTransactionValue] = useState<string>('');
@@ -14,7 +14,7 @@ export default function HomePage() {
             const transactionId = transactionValue.trim()
             if (transactionId) {
                 try {
-                    await getTransaction(transactionId);
+                    await MempoolService.getTransaction(transactionId);
                     setError("");
                     navigate(`/transaction/${encodeURIComponent(transactionId)}`);
                 }
