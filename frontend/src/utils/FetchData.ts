@@ -4,14 +4,12 @@ import { getAddressFromVout } from './Bitcoin';
 import { AddressNode, BalanceType, NodeBase, NodeEdge, StartNode } from './Node';
 
 type LoadFn = (transaction: string) => void
-type LoadTransactionFn = (transaction: string, sourceNode: NodeBase) => Promise<void>
 type LoadAddressFn = (addressNode: AddressNode) => Promise<void>
 
 type UseDataFetchingResult = [
     NodeBase[],
     NodeEdge[],
     LoadFn,
-    LoadTransactionFn,
     LoadAddressFn
 ]
 
@@ -146,5 +144,5 @@ export function useDataFetching(): UseDataFetchingResult {
         }
     }
 
-    return [nodes, edges, load, loadTransaction, loadAddress]
+    return [nodes, edges, load, loadAddress]
 }

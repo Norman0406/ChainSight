@@ -22,14 +22,6 @@ export function shortenBitcoinAddress(address: string): string {
     return `${firstFive}...${lastFive}`;
 }
 
-export function nodeSizeFromSats(valueInSatoshi: number): number {
-    return dynamicSizeFromValue(valueInSatoshi, 10, 50, 100);
-}
-
-export function edgeSizeFromSats(valueInSatoshi: number): number {
-    return dynamicSizeFromValue(valueInSatoshi, 1, 10, 10);
-}
-
 export function edgeSizeFromBlockHeightDelta(blockheightDelta: number): number {
     // smaller deltas should yield a bigger size
 
